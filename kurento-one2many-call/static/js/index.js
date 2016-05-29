@@ -18,12 +18,22 @@
 var ws = new WebSocket('wss://' + location.host + '/one2many');
 var video;
 var webRtcPeer;
+var presenterMode;
+
+function runViewer() {
+	if (presenterMode===1) {
+		return;
+	}
+	viewer();
+}
 
 window.onload = function() {
 	console = new Console();
 	video = document.getElementById('video');
+	presenterMode = 0;
+	setTimeout(runViewer, 10000);
 
-	document.getElementById('call').addEventListener('click', function() { presenter(); } );
+	document.getElementById('call').addEventListener('click', function() { presenterMode=1; presenter(); } );
 	document.getElementById('viewer').addEventListener('click', function() { viewer(); } );
 	document.getElementById('terminate').addEventListener('click', function() { stop(); } );
 }
