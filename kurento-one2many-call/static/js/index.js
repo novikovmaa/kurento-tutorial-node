@@ -88,17 +88,18 @@ function presenter() {
 	if (!webRtcPeer) {
 		showSpinner(video);
 
-		var options = {
-			localVideo: video,
-			onicecandidate : onIceCandidate,
+   		var options = {
+   		  localVideo : video,
+   		  onicecandidate : onIceCandidate,
    		  sendSource : 'screen'
-	    }
+   		};
 
-		webRtcPeer = kurentoUtils.WebRtcPeer.WebRtcPeerSendonly(options, function(error) {
-			if(error) return onError(error);
-
-			this.generateOffer(onOfferPresenter);
-		});
+   	    webRtcPeer = new kurentoUtils.WebRtcPeer.WebRtcPeerSendonly(options,function(error) {
+   	       if (error) {
+   	           return console.error(error);
+   	       }
+   	       webRtcPeer.generateOffer(onOfferPresenter);
+   	    });
 	}
 }
 
