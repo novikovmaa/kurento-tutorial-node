@@ -343,7 +343,7 @@ function clearCandidatesQueue(sessionId) {
 
 // fixed
 function stop(sessionId) {
-	if (typeof presenter[sessionId] !== 'undefined' || presenter[sessionId] !== null && presenter[sessionId].id == sessionId) {
+	if (typeof presenter[sessionId] !== 'undefined' && presenter[sessionId] !== null && presenter[sessionId].id == sessionId) {
 		for (var i in viewers) {
 			var viewer = viewers[i];
 			// this viewer is a viewer of this presenter
