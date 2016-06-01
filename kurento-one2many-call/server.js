@@ -192,7 +192,7 @@ function startPresenter(sessionId, ws, sdpOffer, callback) {
 			return callback(error);
 		}
 
-		if (presenter === null) {
+		if (typeof presenter[sessionId] === 'undefined' || presenter[sessionId] === null) {
 			stop(sessionId);
 			return callback(noPresenterMessage);
 		}
@@ -203,7 +203,7 @@ function startPresenter(sessionId, ws, sdpOffer, callback) {
 				return callback(error);
 			}
 
-			if (typeof presenter[presenterId] === 'undefined' || presenter[sessionId] === null) {
+			if (typeof presenter[sessionId] === 'undefined' || presenter[sessionId] === null) {
 				stop(sessionId);
 				return callback(noPresenterMessage);
 			}
@@ -243,7 +243,7 @@ function startPresenter(sessionId, ws, sdpOffer, callback) {
 						return callback(error);
 					}
 
-					if (presenter === null) {
+					if (typeof presenter[sessionId] === 'undefined' || presenter[sessionId] === null) {
 						stop(sessionId);
 						return callback(noPresenterMessage);
 					}
