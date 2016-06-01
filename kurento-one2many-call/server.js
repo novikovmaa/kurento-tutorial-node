@@ -186,7 +186,7 @@ function startPresenter(sessionId, ws, sdpOffer, callback) {
 		pipeline : null,
 		webRtcEndpoint : null
 	}
-
+	console.log("assigned presented "+sessionId+" to correct value."+presenter[sessionId].id);
 	getKurentoClient(function(error, kurentoClient) {
 		if (error) {
 			stop(sessionId);
@@ -269,6 +269,8 @@ function startViewer(sessionId, ws, sdpOffer, presenterId, callback) {
 
 	if (typeof presenter[presenterId] === 'undefined' || presenter[presenterId] === null) {
 		stop(sessionId);
+
+		console.log("no presenter "+presenterId);
 		return callback(noPresenterMessage);
 	}
 
@@ -284,6 +286,7 @@ function startViewer(sessionId, ws, sdpOffer, presenterId, callback) {
 		}
 
 		if (typeof presenter[presenterId] === 'undefined' || presenter[presenterId] === null) {
+			console.log("2 no presenter "+presenterId);
 			stop(sessionId);
 			return callback(noPresenterMessage);
 		}
@@ -309,6 +312,7 @@ function startViewer(sessionId, ws, sdpOffer, presenterId, callback) {
 				return callback(error);
 			}
 			if (typeof presenter[presenterId] === 'undefined' || presenter[presenterId] === null) {
+				console.log("3 no presenter "+presenterId);
 				stop(sessionId);
 				return callback(noPresenterMessage);
 			}
@@ -319,6 +323,7 @@ function startViewer(sessionId, ws, sdpOffer, presenterId, callback) {
 					return callback(error);
 				}
 				if (typeof presenter[presenterId] === 'undefined' || presenter[presenterId] === null) {
+					console.log("4 no presenter "+presenterId);
 					stop(sessionId);
 					return callback(noPresenterMessage);
 				}
