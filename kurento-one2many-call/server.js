@@ -175,7 +175,7 @@ function getKurentoClient(callback) {
 function startPresenter(sessionId, ws, sdpOffer, callback) {
 	clearCandidatesQueue(sessionId);
 
-	if (presenter[sessionId] !== null) {
+	if (typeof presenter[sessionId] !== 'undefined' && presenter[sessionId] !== null) {
 		stop(sessionId);
 		return callback("Another user is currently acting as presenter "+sessionId+". Try again later ...");
 	}
@@ -203,7 +203,7 @@ function startPresenter(sessionId, ws, sdpOffer, callback) {
 				return callback(error);
 			}
 
-			if (presenter[sessionId] === null) {
+			if (typeof presenterId[index] === 'undefined' || presenter[sessionId] === null) {
 				stop(sessionId);
 				return callback(noPresenterMessage);
 			}
@@ -266,7 +266,7 @@ function startPresenter(sessionId, ws, sdpOffer, callback) {
 function startViewer(sessionId, ws, sdpOffer, presenterId, callback) {
 	clearCandidatesQueue(sessionId);
 
-	if (presenter[presenterId] === null) {
+	if (typeof presenter[presenterId] !== 'undefined' || presenter[presenterId] === null) {
 		stop(sessionId);
 		return callback(noPresenterMessage);
 	}
@@ -282,7 +282,7 @@ function startViewer(sessionId, ws, sdpOffer, presenterId, callback) {
 			"ws" : ws
 		}
 
-		if (presenter[presenterId] === null) {
+		if (typeof presenter[presenterId] !== 'undefined' || presenter[presenterId] === null) {
 			stop(sessionId);
 			return callback(noPresenterMessage);
 		}
@@ -307,7 +307,7 @@ function startViewer(sessionId, ws, sdpOffer, presenterId, callback) {
 				stop(sessionId);
 				return callback(error);
 			}
-			if (presenter[presenterId] === null) {
+			if (typeof presenter[presenterId] !== 'undefined' || presenter[presenterId] === null) {
 				stop(sessionId);
 				return callback(noPresenterMessage);
 			}
@@ -317,7 +317,7 @@ function startViewer(sessionId, ws, sdpOffer, presenterId, callback) {
 					stop(sessionId);
 					return callback(error);
 				}
-				if (presenter[presenterId] === null) {
+				if (typeof presenter[presenterId] !== 'undefined' || presenter[presenterId] === null) {
 					stop(sessionId);
 					return callback(noPresenterMessage);
 				}
@@ -342,7 +342,7 @@ function clearCandidatesQueue(sessionId) {
 
 // fixed
 function stop(sessionId) {
-	if (presenter[sessionId] !== null && presenter[sessionId].id == sessionId) {
+	if (typeof presenter[sessionId] !== 'undefined' || presenter[sessionId] !== null && presenter[sessionId].id == sessionId) {
 		for (var i in viewers) {
 			var viewer = viewers[i];
 			// this viewer is a viewer of this presenter
