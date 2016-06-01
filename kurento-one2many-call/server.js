@@ -113,6 +113,7 @@ wss.on('connection', function(ws) {
 
         case 'viewer':
 			// message has to contain presenterId
+			console.log("start viewer, presenterId: "+message.presenterId+", sessionId"+sessionId);
 			startViewer(sessionId, ws, message.sdpOffer, message.presenterId, function(error, sdpAnswer) {
 				if (error) {
 					return ws.send(JSON.stringify({
