@@ -1,4 +1,4 @@
-/*
+
  * (C) Copyright 2014-2015 Kurento (http://kurento.org/)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -48,6 +48,7 @@ var kurentoClient = null;
 // array addressed by sessionId
 var presenter = [];
 var viewers = [];
+var lastPresenter = 1;
 var noPresenterMessage = 'No active presenter. Try again later...';
 
 /*
@@ -181,6 +182,9 @@ function startPresenter(sessionId, ws, sdpOffer, callback) {
 		return callback("Another user is currently acting as presenter "+sessionId+". Try again later ...");
 	}
 
+	lastPresenter = sessionId;
+	console.log("last presenter is now "+lastPresenter);
+
 	presenter[sessionId] = {
 		id : sessionId,
 		pipeline : null,
@@ -266,6 +270,12 @@ function startPresenter(sessionId, ws, sdpOffer, callback) {
 // fixed
 function startViewer(sessionId, ws, sdpOffer, presenterId, callback) {
 	clearCandidatesQueue(sessionId);
+
+	if (typeof presenterId === 'undefined' || presenterId === null) {
+		console.log("setting undefined/unset presenterId to last known presenter, which is " +
+			lastPresenter);
+		presenterId = lastPresenter;
+	}
 
 	if (typeof presenter[presenterId] === 'undefined' || presenter[presenterId] === null) {
 		stop(sessionId);
