@@ -203,7 +203,7 @@ function startPresenter(sessionId, ws, sdpOffer, callback) {
 				return callback(error);
 			}
 
-			if (typeof presenterId[index] === 'undefined' || presenter[sessionId] === null) {
+			if (typeof presenter[presenterId] === 'undefined' || presenter[sessionId] === null) {
 				stop(sessionId);
 				return callback(noPresenterMessage);
 			}
