@@ -267,7 +267,7 @@ function startPresenter(sessionId, ws, sdpOffer, callback) {
 function startViewer(sessionId, ws, sdpOffer, presenterId, callback) {
 	clearCandidatesQueue(sessionId);
 
-	if (typeof presenter[presenterId] !== 'undefined' || presenter[presenterId] === null) {
+	if (typeof presenter[presenterId] === 'undefined' || presenter[presenterId] === null) {
 		stop(sessionId);
 		return callback(noPresenterMessage);
 	}
@@ -283,7 +283,7 @@ function startViewer(sessionId, ws, sdpOffer, presenterId, callback) {
 			"ws" : ws
 		}
 
-		if (typeof presenter[presenterId] !== 'undefined' || presenter[presenterId] === null) {
+		if (typeof presenter[presenterId] === 'undefined' || presenter[presenterId] === null) {
 			stop(sessionId);
 			return callback(noPresenterMessage);
 		}
@@ -308,7 +308,7 @@ function startViewer(sessionId, ws, sdpOffer, presenterId, callback) {
 				stop(sessionId);
 				return callback(error);
 			}
-			if (typeof presenter[presenterId] !== 'undefined' || presenter[presenterId] === null) {
+			if (typeof presenter[presenterId] === 'undefined' || presenter[presenterId] === null) {
 				stop(sessionId);
 				return callback(noPresenterMessage);
 			}
@@ -318,7 +318,7 @@ function startViewer(sessionId, ws, sdpOffer, presenterId, callback) {
 					stop(sessionId);
 					return callback(error);
 				}
-				if (typeof presenter[presenterId] !== 'undefined' || presenter[presenterId] === null) {
+				if (typeof presenter[presenterId] === 'undefined' || presenter[presenterId] === null) {
 					stop(sessionId);
 					return callback(noPresenterMessage);
 				}
