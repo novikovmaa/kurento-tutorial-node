@@ -91,7 +91,11 @@ wss.on('connection', function(ws) {
 
     ws.on('message', function(_message) {
         var message = JSON.parse(_message);
-        console.log('Connection ' + sessionId + ' received message ', message);
+	if (message.id !== 'onIceCandidate') {
+	       console.log('Connection ' + sessionId + ' received message ', message);
+	} else {
+		console.log('TL;DR: onIceCandidate');
+	}
 
         switch (message.id) {
         case 'presenter':
@@ -123,7 +127,7 @@ wss.on('connection', function(ws) {
 						message : error
 					}));
 				}
-
+				console.log("send a valid SDP answer to viewer "+sessionId+", its presenter is now "+viewers[sessionId].presenterId);
 				ws.send(JSON.stringify({
 					id : 'viewerResponse',
 					response : 'accepted',
@@ -190,7 +194,7 @@ function startPresenter(sessionId, ws, sdpOffer, callback) {
 		pipeline : null,
 		webRtcEndpoint : null
 	}
-	console.log("assigned presented "+sessionId+" to correct value."+presenter[sessionId].id);
+	console.log("assigned presented "+sessionId+" with value "+presenter[sessionId].id);
 	getKurentoClient(function(error, kurentoClient) {
 		if (error) {
 			stop(sessionId);
@@ -204,6 +208,7 @@ function startPresenter(sessionId, ws, sdpOffer, callback) {
 
 		kurentoClient.create('MediaPipeline', function(error, pipeline) {
 			if (error) {
+				console.log("creation of MediaPipeline failed for presenter "+sessionId);
 				stop(sessionId);
 				return callback(error);
 			}
@@ -214,13 +219,17 @@ function startPresenter(sessionId, ws, sdpOffer, callback) {
 			}
 
 			presenter[sessionId].pipeline = pipeline;
+			console.log("created a media pipline and assigned it to presenter "+sessionId);
 			pipeline.create('WebRtcEndpoint', function(error, webRtcEndpoint) {
 				if (error) {
+					console.log("creation of a presenter WebRtcEndPoint for session "+sessionId+" failed!");
 					stop(sessionId);
 					return callback(error);
 				}
 
 				if (presenter[sessionId] === null) {
+					console.log("presenters WebRtcEndPoint created for "+sessionId+
+					" but presenter with that id is mystically lacking so it will be left stale!");
 					stop(sessionId);
 					return callback(noPresenterMessage);
 				}
@@ -255,7 +264,7 @@ function startPresenter(sessionId, ws, sdpOffer, callback) {
 
 					callback(null, sdpAnswer);
 				});
-
+ console.log("invoking gatherCandidates");
                 webRtcEndpoint.gatherCandidates(function(error) {
                     if (error) {
                         stop(sessionId);
@@ -286,6 +295,7 @@ function startViewer(sessionId, ws, sdpOffer, presenterId, callback) {
 
 	presenter[presenterId].pipeline.create('WebRtcEndpoint', function(error, webRtcEndpoint) {
 		if (error) {
+			console.log("presenter "+presenterId+" missing. should've been there.");
 			stop(sessionId);
 			return callback(error);
 		}
@@ -326,21 +336,26 @@ function startViewer(sessionId, ws, sdpOffer, presenterId, callback) {
 				stop(sessionId);
 				return callback(noPresenterMessage);
 			}
-
+			console.log("connecting presenter "+presenterId+" with viewer "+sessionId);
 			presenter[presenterId].webRtcEndpoint.connect(webRtcEndpoint, function(error) {
 				if (error) {
+					console.log("some error connecting presenter "+presenterId+
+						" with viewer "+sessionId+" : "+error);
 					stop(sessionId);
 					return callback(error);
 				}
 				if (typeof presenter[presenterId] === 'undefined' || presenter[presenterId] === null) {
-					console.log("4 no presenter "+presenterId);
+					console.log("no presenter when connecting presenter " + 
+						presenterId + " to viewer "+sessionId);
 					stop(sessionId);
 					return callback(noPresenterMessage);
 				}
 
 				callback(null, sdpAnswer);
+			console.log("invoking gatherCandidates");
 		        webRtcEndpoint.gatherCandidates(function(error) {
 		            if (error) {
+					console.log("gather candidates error");
 			            stop(sessionId);
 			            return callback(error);
 		            }
