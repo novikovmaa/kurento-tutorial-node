@@ -50,6 +50,7 @@ var presenter = [];
 var viewers = [];
 var lastPresenter = 1;
 var noPresenterMessage = 'No active presenter. Try again later...';
+var presenterIds = {};
 
 /*
  * Server startup
@@ -99,7 +100,7 @@ wss.on('connection', function(ws) {
 
         switch (message.id) {
         case 'presenter':
-			startPresenter(sessionId, ws, message.sdpOffer, function(error, sdpAnswer) {
+			startPresenter(sessionId, ws, message.sdpOffer, message.presenterName, function(error, sdpAnswer) {
 				if (error) {
 					return ws.send(JSON.stringify({
 						id : 'presenterResponse',
@@ -118,8 +119,8 @@ wss.on('connection', function(ws) {
 
         case 'viewer':
 			// message has to contain presenterId
-			console.log("start viewer, presenterId: "+message.presenterId+", sessionId"+sessionId);
-			startViewer(sessionId, ws, message.sdpOffer, message.presenterId, function(error, sdpAnswer) {
+			console.log("start viewer, presenterName: >"+message.presenterName+"<, sessionId"+sessionId);
+			startViewer(sessionId, ws, message.sdpOffer, message.presenterName, function(error, sdpAnswer) {
 				if (error) {
 					return ws.send(JSON.stringify({
 						id : 'viewerResponse',
@@ -178,7 +179,7 @@ function getKurentoClient(callback) {
 }
 
 // fixed
-function startPresenter(sessionId, ws, sdpOffer, callback) {
+function startPresenter(sessionId, ws, sdpOffer, presenterName, callback) {
 	clearCandidatesQueue(sessionId);
 
 	if (typeof presenter[sessionId] !== 'undefined' && presenter[sessionId] !== null) {
@@ -187,6 +188,8 @@ function startPresenter(sessionId, ws, sdpOffer, callback) {
 	}
 
 	lastPresenter = sessionId;
+	presenterIds[presenterName] = sessionId;
+	console.log("presenterName for presenter "+sessionId+" is >"+presenterName+"<");
 	console.log("last presenter is now "+lastPresenter);
 
 	presenter[sessionId] = {
@@ -277,14 +280,23 @@ function startPresenter(sessionId, ws, sdpOffer, callback) {
 }
 
 // fixed
-function startViewer(sessionId, ws, sdpOffer, presenterId, callback) {
+function startViewer(sessionId, ws, sdpOffer, presenterName, callback) {
 	clearCandidatesQueue(sessionId);
+	var presenterId = 1;
 
-	if (typeof presenterId === 'undefined' || presenterId === null) {
+	if (typeof presenterName === 'undefined' || presenterName === null) {
 		console.log("setting undefined/unset presenterId to last known presenter, which is " +
 			lastPresenter);
 		presenterId = lastPresenter;
 	}
+
+	presenterId = presenterIds[presenterName];
+
+        if (typeof presenterId === 'undefined' || presenterId === null) {
+                console.log("presenter >" + presenterName+ "< not known. seting presenterId to lastPresenter, which is "+
+                        lastPresenter);
+                presenterId = lastPresenter;
+        }
 
 	if (typeof presenter[presenterId] === 'undefined' || presenter[presenterId] === null) {
 		stop(sessionId);
