@@ -58,8 +58,7 @@ var presenterIds = {};
 var asUrl = url.parse(argv.as_uri);
 var port = asUrl.port;
 var server = https.createServer(options, app).listen(port, function() {
-    console.log('Kurento Tutorial started');
-    console.log('Open ' + url.format(asUrl) + ' with a WebRTC capable browser');
+    console.log('Demio');
 });
 
 var wss = new ws.Server({
@@ -195,7 +194,8 @@ function startPresenter(sessionId, ws, sdpOffer, presenterName, callback) {
 	presenter[sessionId] = {
 		id : sessionId,
 		pipeline : null,
-		webRtcEndpoint : null
+		webRtcEndpoint : null,
+		recorderEndpoint : null
 	}
 	console.log("assigned presented "+sessionId+" with value "+presenter[sessionId].id);
 	getKurentoClient(function(error, kurentoClient) {
@@ -223,60 +223,95 @@ function startPresenter(sessionId, ws, sdpOffer, presenterName, callback) {
 
 			presenter[sessionId].pipeline = pipeline;
 			console.log("created a media pipline and assigned it to presenter "+sessionId);
-			pipeline.create('WebRtcEndpoint', function(error, webRtcEndpoint) {
+
+			recordParams = {
+				uri : "file:///tmp/demio_rec_"+sessionId+"_"+Math.floor(Math.random()*1000000000)+".webm" //The media server user must have wirte permissions for creating this file
+			};
+			pipeline.create('RecorderEndpoint', recordParams, function(error, recorderEndpoint) {
 				if (error) {
-					console.log("creation of a presenter WebRtcEndPoint for session "+sessionId+" failed!");
-					stop(sessionId);
+					console.log("Recorder problem");
 					return callback(error);
 				}
+				console.log("created recorder endpoint");
+				recorderEndpoint.on('Recording', function(event) {
+					console.log("Recording");
+				});
+                                recorderEndpoint.on('Paused', function(event) {
+                                        console.log("Paused");
+                                });
+                                recorderEndpoint.on('Stopped', function(event) {
+                                        console.log("Stopped");
+                                });
 
-				if (presenter[sessionId] === null) {
-					console.log("presenters WebRtcEndPoint created for "+sessionId+
-					" but presenter with that id is mystically lacking so it will be left stale!");
-					stop(sessionId);
-					return callback(noPresenterMessage);
-				}
-
-				presenter[sessionId].webRtcEndpoint = webRtcEndpoint;
-
-                if (candidatesQueue[sessionId]) {
-                    while(candidatesQueue[sessionId].length) {
-                        var candidate = candidatesQueue[sessionId].shift();
-                        webRtcEndpoint.addIceCandidate(candidate);
-                    }
-                }
-
-                webRtcEndpoint.on('OnIceCandidate', function(event) {
-                    var candidate = kurento.register.complexTypes.IceCandidate(event.candidate);
-                    ws.send(JSON.stringify({
-                        id : 'iceCandidate',
-                        candidate : candidate
-                    }));
-                });
-
-				webRtcEndpoint.processOffer(sdpOffer, function(error, sdpAnswer) {
+				pipeline.create('WebRtcEndpoint', function(error, webRtcEndpoint) {
 					if (error) {
+						console.log("creation of a presenter WebRtcEndPoint for session "+sessionId+" failed!");
 						stop(sessionId);
 						return callback(error);
 					}
 
-					if (typeof presenter[sessionId] === 'undefined' || presenter[sessionId] === null) {
+					if (presenter[sessionId] === null) {
+						console.log("presenters WebRtcEndPoint created for "+sessionId+
+						" but presenter with that id is mystically lacking so it will be left stale!");
 						stop(sessionId);
 						return callback(noPresenterMessage);
-					}
+					}	
 
-					callback(null, sdpAnswer);
+					presenter[sessionId].webRtcEndpoint = webRtcEndpoint;
+					presenter[sessionId].recorderEndpoint = recorderEndpoint;
+	        		        if (candidatesQueue[sessionId]) {
+		        	            while(candidatesQueue[sessionId].length) {
+                			        var candidate = candidatesQueue[sessionId].shift();
+		                        	webRtcEndpoint.addIceCandidate(candidate);
+			                    }
+		        	        }
+
+			                webRtcEndpoint.on('OnIceCandidate', function(event) {
+			                    var candidate = kurento.register.complexTypes.IceCandidate(event.candidate);
+			                    ws.send(JSON.stringify({
+			                        id : 'iceCandidate',
+			                        candidate : candidate
+			                    }));
+			                });
+	
+					webRtcEndpoint.processOffer(sdpOffer, function(error, sdpAnswer) {
+						if (error) {
+							stop(sessionId);
+							return callback(error);
+						}
+
+						if (typeof presenter[sessionId] === 'undefined' || presenter[sessionId] === null) {
+							stop(sessionId);
+							return callback(noPresenterMessage);
+						}
+
+						callback(null, sdpAnswer);
+						webRtcEndpoint.connect(recorderEndpoint, function(error) {
+							if (error !== null) {
+								console.log("recording fails: "+error);
+							}
+						});
+				
+						webRtcEndpoint.on('MediaStateChanged', function(event) {
+							console.log("state changed");
+							if ((event.oldState !== event.newState) && (event.newState === 'CONNECTED')) {
+								console.log("starting recording");
+								recorderEndpoint.record();
+							}
+						});
+						console.log("started recording");
+					});
+					 console.log("invoking gatherCandidates");
+			                webRtcEndpoint.gatherCandidates(function(error) {
+			                    if (error) {
+			                        stop(sessionId);
+                        			return callback(error);
+			                    }
+			                });
 				});
- console.log("invoking gatherCandidates");
-                webRtcEndpoint.gatherCandidates(function(error) {
-                    if (error) {
-                        stop(sessionId);
-                        return callback(error);
-                    }
-                });
-            });
-        });
-	});
+			});
+		});
+	});	
 }
 
 // fixed
