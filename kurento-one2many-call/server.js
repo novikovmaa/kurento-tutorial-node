@@ -1,4 +1,4 @@
-
+/*
  * (C) Copyright 2014-2015 Kurento (http://kurento.org/)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -50,6 +50,7 @@ var presenter = [];
 var viewers = [];
 var lastPresenter = 1;
 var noPresenterMessage = 'No active presenter. Try again later...';
+var presenterIds = {};
 
 /*
  * Server startup
@@ -57,8 +58,7 @@ var noPresenterMessage = 'No active presenter. Try again later...';
 var asUrl = url.parse(argv.as_uri);
 var port = asUrl.port;
 var server = https.createServer(options, app).listen(port, function() {
-    console.log('Kurento Tutorial started');
-    console.log('Open ' + url.format(asUrl) + ' with a WebRTC capable browser');
+    console.log('Demio');
 });
 
 var wss = new ws.Server({
@@ -67,8 +67,8 @@ var wss = new ws.Server({
 });
 
 function nextUniqueId() {
-	idCounter++;
-	return idCounter.toString();
+        idCounter++;
+        return idCounter.toString();
 }
 
 /*
@@ -76,8 +76,8 @@ function nextUniqueId() {
  */
 wss.on('connection', function(ws) {
 
-	var sessionId = nextUniqueId();
-	console.log('Connection received with sessionId ' + sessionId);
+        var sessionId = nextUniqueId();
+        console.log('Connection received with sessionId ' + sessionId);
 
     ws.on('error', function(error) {
         console.log('Connection ' + sessionId + ' error');
@@ -91,46 +91,50 @@ wss.on('connection', function(ws) {
 
     ws.on('message', function(_message) {
         var message = JSON.parse(_message);
-        console.log('Connection ' + sessionId + ' received message ', message);
+        if (message.id !== 'onIceCandidate') {
+               console.log('Connection ' + sessionId + ' received message ', message);
+        } else {
+                console.log('TL;DR: onIceCandidate');
+        }
 
         switch (message.id) {
         case 'presenter':
-			startPresenter(sessionId, ws, message.sdpOffer, function(error, sdpAnswer) {
-				if (error) {
-					return ws.send(JSON.stringify({
-						id : 'presenterResponse',
-						response : 'rejected',
-						message : error
-					}));
-				}
-				ws.send(JSON.stringify({
-					id : 'presenterResponse',
-					response : 'accepted',
-					presenterId : sessionId,
-					sdpAnswer : sdpAnswer
-				}));
-			});
-			break;
+                        startPresenter(sessionId, ws, message.sdpOffer, message.presenterName, function(error, sdpAnswer) {
+                                if (error) {
+                                        return ws.send(JSON.stringify({
+                                                id : 'presenterResponse',
+                                                response : 'rejected',
+                                                message : error
+                                        }));
+                                }
+                                ws.send(JSON.stringify({
+                                        id : 'presenterResponse',
+                                        response : 'accepted',
+                                        presenterId : sessionId,
+                                        sdpAnswer : sdpAnswer
+                                }));
+                        });
+                        break;
 
         case 'viewer':
-			// message has to contain presenterId
-			console.log("start viewer, presenterId: "+message.presenterId+", sessionId"+sessionId);
-			startViewer(sessionId, ws, message.sdpOffer, message.presenterId, function(error, sdpAnswer) {
-				if (error) {
-					return ws.send(JSON.stringify({
-						id : 'viewerResponse',
-						response : 'rejected',
-						message : error
-					}));
-				}
-
-				ws.send(JSON.stringify({
-					id : 'viewerResponse',
-					response : 'accepted',
-					sdpAnswer : sdpAnswer
-				}));
-			});
-			break;
+                        // message has to contain presenterId
+                        console.log("start viewer, presenterName: >"+message.presenterName+"<, sessionId"+sessionId);
+                        startViewer(sessionId, ws, message.sdpOffer, message.presenterName, function(error, sdpAnswer) {
+                                if (error) {
+                                        return ws.send(JSON.stringify({
+                                                id : 'viewerResponse',
+                                                response : 'rejected',
+                                                message : error
+                                        }));
+                                }
+                                console.log("send a valid SDP answer to viewer "+sessionId+", its presenter is now "+viewers[sessionId].presenterId);
+                                ws.send(JSON.stringify({
+                                        id : 'viewerResponse',
+                                        response : 'accepted',
+                                        sdpAnswer : sdpAnswer
+                                }));
+                        });
+                        break;
 
         case 'stop':
             stop(sessionId);
@@ -174,210 +178,274 @@ function getKurentoClient(callback) {
 }
 
 // fixed
-function startPresenter(sessionId, ws, sdpOffer, callback) {
-	clearCandidatesQueue(sessionId);
+function startPresenter(sessionId, ws, sdpOffer, presenterName, callback) {
+        clearCandidatesQueue(sessionId);
 
-	if (typeof presenter[sessionId] !== 'undefined' && presenter[sessionId] !== null) {
-		stop(sessionId);
-		return callback("Another user is currently acting as presenter "+sessionId+". Try again later ...");
-	}
+        if (typeof presenter[sessionId] !== 'undefined' && presenter[sessionId] !== null) {
+                stop(sessionId);
+                return callback("Another user is currently acting as presenter "+sessionId+". Try again later ...");
+        }
 
-	lastPresenter = sessionId;
-	console.log("last presenter is now "+lastPresenter);
+        lastPresenter = sessionId;
+        presenterIds[presenterName] = sessionId;
+        console.log("presenterName for presenter "+sessionId+" is >"+presenterName+"<");
+        console.log("last presenter is now "+lastPresenter);
 
-	presenter[sessionId] = {
-		id : sessionId,
-		pipeline : null,
-		webRtcEndpoint : null
-	}
-	console.log("assigned presented "+sessionId+" to correct value."+presenter[sessionId].id);
-	getKurentoClient(function(error, kurentoClient) {
-		if (error) {
-			stop(sessionId);
-			return callback(error);
-		}
-
-		if (typeof presenter[sessionId] === 'undefined' || presenter[sessionId] === null) {
-			stop(sessionId);
-			return callback(noPresenterMessage);
-		}
-
-		kurentoClient.create('MediaPipeline', function(error, pipeline) {
-			if (error) {
-				stop(sessionId);
-				return callback(error);
-			}
-
-			if (typeof presenter[sessionId] === 'undefined' || presenter[sessionId] === null) {
-				stop(sessionId);
-				return callback(noPresenterMessage);
-			}
-
-			presenter[sessionId].pipeline = pipeline;
-			pipeline.create('WebRtcEndpoint', function(error, webRtcEndpoint) {
-				if (error) {
-					stop(sessionId);
-					return callback(error);
-				}
-
-				if (presenter[sessionId] === null) {
-					stop(sessionId);
-					return callback(noPresenterMessage);
-				}
-
-				presenter[sessionId].webRtcEndpoint = webRtcEndpoint;
-
-                if (candidatesQueue[sessionId]) {
-                    while(candidatesQueue[sessionId].length) {
-                        var candidate = candidatesQueue[sessionId].shift();
-                        webRtcEndpoint.addIceCandidate(candidate);
-                    }
-                }
-
-                webRtcEndpoint.on('OnIceCandidate', function(event) {
-                    var candidate = kurento.register.complexTypes.IceCandidate(event.candidate);
-                    ws.send(JSON.stringify({
-                        id : 'iceCandidate',
-                        candidate : candidate
-                    }));
-                });
-
-				webRtcEndpoint.processOffer(sdpOffer, function(error, sdpAnswer) {
-					if (error) {
-						stop(sessionId);
-						return callback(error);
-					}
-
-					if (typeof presenter[sessionId] === 'undefined' || presenter[sessionId] === null) {
-						stop(sessionId);
-						return callback(noPresenterMessage);
-					}
-
-					callback(null, sdpAnswer);
-				});
-
-                webRtcEndpoint.gatherCandidates(function(error) {
-                    if (error) {
+        presenter[sessionId] = {
+                id : sessionId,
+                pipeline : null,
+                webRtcEndpoint : null,
+                recorderEndpoint : null,
+                ready : 0
+        }
+        console.log("assigned presented "+sessionId+" with value "+presenter[sessionId].id);
+        getKurentoClient(function(error, kurentoClient) {
+                if (error) {
                         stop(sessionId);
                         return callback(error);
-                    }
+                }
+
+                if (typeof presenter[sessionId] === 'undefined' || presenter[sessionId] === null) {
+                        stop(sessionId);
+                        return callback(noPresenterMessage);
+                }
+
+                kurentoClient.create('MediaPipeline', function(error, pipeline) {
+                        if (error) {
+                                console.log("creation of MediaPipeline failed for presenter "+sessionId);
+                                stop(sessionId);
+                                return callback(error);
+                        }
+
+                        if (typeof presenter[sessionId] === 'undefined' || presenter[sessionId] === null) {
+                                stop(sessionId);
+                                return callback(noPresenterMessage);
+                        }
+
+                        presenter[sessionId].pipeline = pipeline;
+                        console.log("created a media pipline and assigned it to presenter "+sessionId);
+
+                        recordParams = {
+                                uri : "file:///tmp/demio_rec_"+sessionId+"_"+Math.floor(Math.random()*1000000000)+".webm" //The media server user must have wirte permissions for creating this file
+                        };
+                        pipeline.create('RecorderEndpoint', recordParams, function(error, recorderEndpoint) {
+                                if (error) {
+                                        console.log("Recorder problem");
+                                        return callback(error);
+                                }
+                                console.log("created recorder endpoint");
+                                recorderEndpoint.on('Recording', function(event) {
+                                        console.log("Recording");
+                                });
+                                recorderEndpoint.on('Paused', function(event) {
+                                        console.log("Paused");
+                                });
+                                recorderEndpoint.on('Stopped', function(event) {
+                                        console.log("Stopped");
+                                });
+
+                                pipeline.create('WebRtcEndpoint', function(error, webRtcEndpoint) {
+                                        if (error) {
+                                                console.log("creation of a presenter WebRtcEndPoint for session "+sessionId+" failed!");
+                                                stop(sessionId);
+                                                return callback(error);
+                                        }
+
+                                        if (presenter[sessionId] === null) {
+                                                console.log("presenters WebRtcEndPoint created for "+sessionId+
+                                                " but presenter with that id is mystically lacking so it will be left stale!");
+                                                stop(sessionId);
+                                                return callback(noPresenterMessage);
+                                        }
+
+                                        presenter[sessionId].webRtcEndpoint = webRtcEndpoint;
+                                        presenter[sessionId].recorderEndpoint = recorderEndpoint;
+                                        if (candidatesQueue[sessionId]) {
+                                            while(candidatesQueue[sessionId].length) {
+                                                var candidate = candidatesQueue[sessionId].shift();
+                                                webRtcEndpoint.addIceCandidate(candidate);
+                                            }
+                                        }
+
+                                        webRtcEndpoint.on('OnIceCandidate', function(event) {
+                                            var candidate = kurento.register.complexTypes.IceCandidate(event.candidate);
+                                            ws.send(JSON.stringify({
+                                                id : 'iceCandidate',
+                                                candidate : candidate
+                                            }));
+                                        });
+
+                                        webRtcEndpoint.processOffer(sdpOffer, function(error, sdpAnswer) {
+                                                if (error) {
+                                                        stop(sessionId);
+                                                        return callback(error);
+                                                }
+
+                                                if (typeof presenter[sessionId] === 'undefined' || presenter[sessionId] === null) {
+                                                        stop(sessionId);
+                                                        return callback(noPresenterMessage);
+                                                }
+
+                                                webRtcEndpoint.connect(recorderEndpoint, function(error) {
+                                                        if (error !== null) {
+                                                                console.log("recording fails: "+error);
+                                                        }
+                                                });
+
+                                                webRtcEndpoint.on('MediaStateChanged', function(event) {
+                                                        console.log("state changed");
+                                                        if ((event.oldState !== event.newState) && (event.newState === 'CONNECTED')) {
+                                                                console.log("starting recording");
+                                                                recorderEndpoint.record();
+                                                        }
+                                                });
+                                                console.log("Presenter "+sessionId+" ready.");
+                                                presenter[sessionId].ready=1;
+                                                callback(null, sdpAnswer);
+                                        });
+                                         console.log("invoking gatherCandidates");
+                                        webRtcEndpoint.gatherCandidates(function(error) {
+                                            if (error) {
+                                                stop(sessionId);
+                                                return callback(error);
+                                            }
+                                        });
+                                });
+                        });
                 });
-            });
         });
-	});
 }
 
 // fixed
-function startViewer(sessionId, ws, sdpOffer, presenterId, callback) {
-	clearCandidatesQueue(sessionId);
+function startViewer(sessionId, ws, sdpOffer, presenterName, callback) {
+        clearCandidatesQueue(sessionId);
+        var presenterId = 1;
 
-	if (typeof presenterId === 'undefined' || presenterId === null) {
-		console.log("setting undefined/unset presenterId to last known presenter, which is " +
-			lastPresenter);
-		presenterId = lastPresenter;
-	}
+        if (typeof presenterName === 'undefined' || presenterName === null) {
+                console.log("setting undefined/unset presenterId to last known presenter, which is " +
+                        lastPresenter);
+                presenterId = lastPresenter;
+        }
 
-	if (typeof presenter[presenterId] === 'undefined' || presenter[presenterId] === null) {
-		stop(sessionId);
+        presenterId = presenterIds[presenterName];
 
-		console.log("no presenter "+presenterId);
-		return callback(noPresenterMessage);
-	}
+        if (typeof presenterId === 'undefined' || presenterId === null) {
+                console.log("presenter >" + presenterName+ "< not known. seting presenterId to lastPresenter, which is "+
+                        lastPresenter);
+                presenterId = lastPresenter;
+        }
 
-	presenter[presenterId].pipeline.create('WebRtcEndpoint', function(error, webRtcEndpoint) {
-		if (error) {
-			stop(sessionId);
-			return callback(error);
-		}
-		viewers[sessionId] = {
-			"presenterId": presenterId,
-			"webRtcEndpoint" : webRtcEndpoint,
-			"ws" : ws
-		}
+        if (typeof presenter[presenterId] === 'undefined' || presenter[presenterId] === null || presenter[presenterId].ready==0) {
+                stop(sessionId);
 
-		if (typeof presenter[presenterId] === 'undefined' || presenter[presenterId] === null) {
-			console.log("2 no presenter "+presenterId);
-			stop(sessionId);
-			return callback(noPresenterMessage);
-		}
+                console.log("no presenter "+presenterId);
+                return callback(noPresenterMessage);
+        }
 
-		if (candidatesQueue[sessionId]) {
-			while(candidatesQueue[sessionId].length) {
-				var candidate = candidatesQueue[sessionId].shift();
-				webRtcEndpoint.addIceCandidate(candidate);
-			}
-		}
+        presenter[presenterId].pipeline.create('WebRtcEndpoint', function(error, webRtcEndpoint) {
+                if (error) {
+                        console.log("presenter "+presenterId+" missing. should've been there.");
+                        stop(sessionId);
+                        return callback(error);
+                }
+                viewers[sessionId] = {
+                        "presenterId": presenterId,
+                        "webRtcEndpoint" : webRtcEndpoint,
+                        "ws" : ws
+                }
+
+                if (typeof presenter[presenterId] === 'undefined' || presenter[presenterId] === null) {
+                        console.log("2 no presenter "+presenterId);
+                        stop(sessionId);
+                        return callback(noPresenterMessage);
+                }
+
+                if (candidatesQueue[sessionId]) {
+                        while(candidatesQueue[sessionId].length) {
+                                var candidate = candidatesQueue[sessionId].shift();
+                                webRtcEndpoint.addIceCandidate(candidate);
+                        }
+                }
 
         webRtcEndpoint.on('OnIceCandidate', function(event) {
-            var candidate = kurento.register.complexTypes.IceCandidate(event.candidate);
-            ws.send(JSON.stringify({
-                id : 'iceCandidate',
-                candidate : candidate
-            }));
+                var candidate = kurento.register.complexTypes.IceCandidate(event.candidate);
+                if (ws.readyState!=1) {
+                        console.log("ws closed!\n");
+                        return;
+                }
+                ws.send(JSON.stringify({
+                        id : 'iceCandidate',
+                        candidate : candidate
+                }));
         });
 
-		webRtcEndpoint.processOffer(sdpOffer, function(error, sdpAnswer) {
-			if (error) {
-				stop(sessionId);
-				return callback(error);
-			}
-			if (typeof presenter[presenterId] === 'undefined' || presenter[presenterId] === null) {
-				console.log("3 no presenter "+presenterId);
-				stop(sessionId);
-				return callback(noPresenterMessage);
-			}
+                webRtcEndpoint.processOffer(sdpOffer, function(error, sdpAnswer) {
+                        if (error) {
+                                stop(sessionId);
+                                return callback(error);
+                        }
+                        if (typeof presenter[presenterId] === 'undefined' || presenter[presenterId] === null) {
+                                console.log("3 no presenter "+presenterId);
+                                stop(sessionId);
+                                return callback(noPresenterMessage);
+                        }
+                        console.log("connecting presenter "+presenterId+" with viewer "+sessionId);
+                        presenter[presenterId].webRtcEndpoint.connect(webRtcEndpoint, function(error) {
+                                if (error) {
+                                        console.log("some error connecting presenter "+presenterId+
+                                                " with viewer "+sessionId+" : "+error);
+                                        stop(sessionId);
+                                        return callback(error);
+                                }
+                                if (typeof presenter[presenterId] === 'undefined' || presenter[presenterId] === null) {
+                                        console.log("no presenter when connecting presenter " +
+                                                presenterId + " to viewer "+sessionId);
+                                        stop(sessionId);
+                                        return callback(noPresenterMessage);
+                                }
 
-			presenter[presenterId].webRtcEndpoint.connect(webRtcEndpoint, function(error) {
-				if (error) {
-					stop(sessionId);
-					return callback(error);
-				}
-				if (typeof presenter[presenterId] === 'undefined' || presenter[presenterId] === null) {
-					console.log("4 no presenter "+presenterId);
-					stop(sessionId);
-					return callback(noPresenterMessage);
-				}
-
-				callback(null, sdpAnswer);
-		        webRtcEndpoint.gatherCandidates(function(error) {
-		            if (error) {
-			            stop(sessionId);
-			            return callback(error);
-		            }
-		        });
-		    });
-	    });
-	});
+                                callback(null, sdpAnswer);
+                        console.log("invoking gatherCandidates");
+                        webRtcEndpoint.gatherCandidates(function(error) {
+                            if (error) {
+                                        console.log("gather candidates error");
+                                    stop(sessionId);
+                                    return callback(error);
+                            }
+                        });
+                    });
+            });
+        });
 }
 
 function clearCandidatesQueue(sessionId) {
-	if (candidatesQueue[sessionId]) {
-		delete candidatesQueue[sessionId];
-	}
+        if (candidatesQueue[sessionId]) {
+                delete candidatesQueue[sessionId];
+        }
 }
 
 // fixed
 function stop(sessionId) {
-	if (typeof presenter[sessionId] !== 'undefined' && presenter[sessionId] !== null && presenter[sessionId].id == sessionId) {
-		for (var i in viewers) {
-			var viewer = viewers[i];
-			// this viewer is a viewer of this presenter
-			if (viewer != null && viewer.ws && viewer.presenterId == sessionId) {
-				viewer.ws.send(JSON.stringify({
-					id : 'stopCommunication'
-				}));
-				viewers[i] = null;
-			}
-		}
-		presenter[sessionId].pipeline.release();
-		presenter[sessionId] = null;
-		//viewers = [];
-	} else if (viewers[sessionId]) {
-		viewers[sessionId].webRtcEndpoint.release();
-		delete viewers[sessionId];
-	}
+        if (typeof presenter[sessionId] !== 'undefined' && presenter[sessionId] !== null && presenter[sessionId].id == sessionId) {
+                for (var i in viewers) {
+                        var viewer = viewers[i];
+                        // this viewer is a viewer of this presenter
+                        if (viewer != null && viewer.ws && viewer.presenterId == sessionId) {
+                                viewer.ws.send(JSON.stringify({
+                                        id : 'stopCommunication'
+                                }));
+                                viewers[i] = null;
+                        }
+                }
+                presenter[sessionId].pipeline.release();
+                presenter[sessionId] = null;
+                //viewers = [];
+        } else if (viewers[sessionId]) {
+                viewers[sessionId].webRtcEndpoint.release();
+                delete viewers[sessionId];
+        }
 
-	clearCandidatesQueue(sessionId);
+        clearCandidatesQueue(sessionId);
 }
 
 // fixed
@@ -400,5 +468,3 @@ function onIceCandidate(sessionId, _candidate) {
         candidatesQueue[sessionId].push(candidate);
     }
 }
-
-app.use(express.static(path.join(__dirname, 'static')));
