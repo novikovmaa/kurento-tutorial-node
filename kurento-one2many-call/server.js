@@ -468,3 +468,5 @@ function onIceCandidate(sessionId, _candidate) {
         candidatesQueue[sessionId].push(candidate);
     }
 }
+
+app.use(express.static(path.join(__dirname, 'static')));
