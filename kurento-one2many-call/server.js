@@ -371,18 +371,17 @@ function startViewer(sessionId, ws, sdpOffer, presenterName, callback) {
                         }
                 }
 
-        webRtcEndpoint.on('OnIceCandidate', function(event) {
+	        webRtcEndpoint.on('OnIceCandidate', function(event) {
                 var candidate = kurento.register.complexTypes.IceCandidate(event.candidate);
-                if (ws.readyState!=1) {
-                        console_log("ws closed!\n");
-                        return;
-                }
-                ws.send(JSON.stringify({
-                        id : 'iceCandidate',
-                        candidate : candidate
-                }));
-        });
-
+	                if (ws.readyState != 1) {
+                        	console_log("ws closed!\n");
+                	        return;
+        	        }
+	                ws.send(JSON.stringify({
+                	        id : 'iceCandidate',
+        	                candidate : candidate
+	                }));
+		});
                 webRtcEndpoint.processOffer(sdpOffer, function(error, sdpAnswer) {
                         if (error) {
                                 stop(sessionId);
@@ -407,19 +406,18 @@ function startViewer(sessionId, ws, sdpOffer, presenterName, callback) {
                                         stop(sessionId);
                                         return callback(noPresenterMessage);
                                 }
-
                                 callback(null, sdpAnswer);
-                        console_log("invoking gatherCandidates");
-                        webRtcEndpoint.gatherCandidates(function(error) {
-                            if (error) {
-                                        console_log("gather candidates error");
-                                    stop(sessionId);
-                                    return callback(error);
-                            }
-                        });
-                    });
-            });
-        });
+                	        console_log("invoking gatherCandidates");
+				webRtcEndpoint.gatherCandidates(function(error) {
+					if (error) {
+						console_log("gather candidates error");
+						stop(sessionId);
+						return callback(error);
+					}
+				});
+			});
+		});
+	});
 }
 
 function clearCandidatesQueue(sessionId) {
@@ -431,6 +429,8 @@ function clearCandidatesQueue(sessionId) {
 // fixed
 function stop(sessionId) {
         if (typeof presenter[sessionId] !== 'undefined' && presenter[sessionId] !== null && presenter[sessionId].id == sessionId) {
+		// invalidate presenter so no one could connect to it
+		presenter[sessionId].ready = 0;
                 for (var i in viewers) {
                         var viewer = viewers[i];
                         // this viewer is a viewer of this presenter
