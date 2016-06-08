@@ -52,13 +52,17 @@ var lastPresenter = 1;
 var noPresenterMessage = 'No active presenter. Try again later...';
 var presenterIds = {};
 
+function console_log(s) {
+        console.log(new Date().toString()+" "+s);
+}
+
 /*
  * Server startup
  */
 var asUrl = url.parse(argv.as_uri);
 var port = asUrl.port;
 var server = https.createServer(options, app).listen(port, function() {
-    console.log('Demio');
+    console_log('Demio');
 });
 
 var wss = new ws.Server({
@@ -77,24 +81,24 @@ function nextUniqueId() {
 wss.on('connection', function(ws) {
 
         var sessionId = nextUniqueId();
-        console.log('Connection received with sessionId ' + sessionId);
+        console_log('Connection received with sessionId ' + sessionId);
 
     ws.on('error', function(error) {
-        console.log('Connection ' + sessionId + ' error');
+        console_log('Connection ' + sessionId + ' error');
         stop(sessionId);
     });
 
     ws.on('close', function() {
-        console.log('Connection ' + sessionId + ' closed');
+        console_log('Connection ' + sessionId + ' closed');
         stop(sessionId);
     });
 
     ws.on('message', function(_message) {
         var message = JSON.parse(_message);
         if (message.id !== 'onIceCandidate') {
-               console.log('Connection ' + sessionId + ' received message ', message);
+               console_log('Connection ' + sessionId + ' received message ', message);
         } else {
-                console.log('TL;DR: onIceCandidate');
+                console_log('TL;DR: onIceCandidate');
         }
 
         switch (message.id) {
@@ -118,7 +122,7 @@ wss.on('connection', function(ws) {
 
         case 'viewer':
                         // message has to contain presenterId
-                        console.log("start viewer, presenterName: >"+message.presenterName+"<, sessionId"+sessionId);
+                        console_log("start viewer, presenterName: >"+message.presenterName+"<, sessionId"+sessionId);
                         startViewer(sessionId, ws, message.sdpOffer, message.presenterName, function(error, sdpAnswer) {
                                 if (error) {
                                         return ws.send(JSON.stringify({
@@ -127,7 +131,7 @@ wss.on('connection', function(ws) {
                                                 message : error
                                         }));
                                 }
-                                console.log("send a valid SDP answer to viewer "+sessionId+", its presenter is now "+viewers[sessionId].presenterId);
+                                console_log("send a valid SDP answer to viewer "+sessionId+", its presenter is now "+viewers[sessionId].presenterId);
                                 ws.send(JSON.stringify({
                                         id : 'viewerResponse',
                                         response : 'accepted',
@@ -167,7 +171,7 @@ function getKurentoClient(callback) {
 
     kurento(argv.ws_uri, function(error, _kurentoClient) {
         if (error) {
-            console.log("Could not find media server at address " + argv.ws_uri);
+            console_log("Could not find media server at address " + argv.ws_uri);
             return callback("Could not find media server at address" + argv.ws_uri
                     + ". Exiting with error " + error);
         }
@@ -188,8 +192,8 @@ function startPresenter(sessionId, ws, sdpOffer, presenterName, callback) {
 
         lastPresenter = sessionId;
         presenterIds[presenterName] = sessionId;
-        console.log("presenterName for presenter "+sessionId+" is >"+presenterName+"<");
-        console.log("last presenter is now "+lastPresenter);
+        console_log("presenterName for presenter "+sessionId+" is >"+presenterName+"<");
+        console_log("last presenter is now "+lastPresenter);
 
         presenter[sessionId] = {
                 id : sessionId,
@@ -198,7 +202,7 @@ function startPresenter(sessionId, ws, sdpOffer, presenterName, callback) {
                 recorderEndpoint : null,
                 ready : 0
         }
-        console.log("assigned presented "+sessionId+" with value "+presenter[sessionId].id);
+        console_log("assigned presented "+sessionId+" with value "+presenter[sessionId].id);
         getKurentoClient(function(error, kurentoClient) {
                 if (error) {
                         stop(sessionId);
@@ -212,7 +216,7 @@ function startPresenter(sessionId, ws, sdpOffer, presenterName, callback) {
 
                 kurentoClient.create('MediaPipeline', function(error, pipeline) {
                         if (error) {
-                                console.log("creation of MediaPipeline failed for presenter "+sessionId);
+                                console_log("creation of MediaPipeline failed for presenter "+sessionId);
                                 stop(sessionId);
                                 return callback(error);
                         }
@@ -223,36 +227,36 @@ function startPresenter(sessionId, ws, sdpOffer, presenterName, callback) {
                         }
 
                         presenter[sessionId].pipeline = pipeline;
-                        console.log("created a media pipline and assigned it to presenter "+sessionId);
+                        console_log("created a media pipline and assigned it to presenter "+sessionId);
 
                         recordParams = {
                                 uri : "file:///tmp/demio_rec_"+sessionId+"_"+Math.floor(Math.random()*1000000000)+".webm" //The media server user must have wirte permissions for creating this file
                         };
                         pipeline.create('RecorderEndpoint', recordParams, function(error, recorderEndpoint) {
                                 if (error) {
-                                        console.log("Recorder problem");
+                                        console_log("Recorder problem");
                                         return callback(error);
                                 }
-                                console.log("created recorder endpoint");
+                                console_log("created recorder endpoint");
                                 recorderEndpoint.on('Recording', function(event) {
-                                        console.log("Recording");
+                                        console_log("Recording");
                                 });
                                 recorderEndpoint.on('Paused', function(event) {
-                                        console.log("Paused");
+                                        console_log("Paused");
                                 });
                                 recorderEndpoint.on('Stopped', function(event) {
-                                        console.log("Stopped");
+                                        console_log("Stopped");
                                 });
 
                                 pipeline.create('WebRtcEndpoint', function(error, webRtcEndpoint) {
                                         if (error) {
-                                                console.log("creation of a presenter WebRtcEndPoint for session "+sessionId+" failed!");
+                                                console_log("creation of a presenter WebRtcEndPoint for session "+sessionId+" failed!");
                                                 stop(sessionId);
                                                 return callback(error);
                                         }
 
                                         if (presenter[sessionId] === null) {
-                                                console.log("presenters WebRtcEndPoint created for "+sessionId+
+                                                console_log("presenters WebRtcEndPoint created for "+sessionId+
                                                 " but presenter with that id is mystically lacking so it will be left stale!");
                                                 stop(sessionId);
                                                 return callback(noPresenterMessage);
@@ -288,22 +292,22 @@ function startPresenter(sessionId, ws, sdpOffer, presenterName, callback) {
 
                                                 webRtcEndpoint.connect(recorderEndpoint, function(error) {
                                                         if (error !== null) {
-                                                                console.log("recording fails: "+error);
+                                                                console_log("recording fails: "+error);
                                                         }
                                                 });
 
                                                 webRtcEndpoint.on('MediaStateChanged', function(event) {
-                                                        console.log("state changed");
+                                                        console_log("state changed");
                                                         if ((event.oldState !== event.newState) && (event.newState === 'CONNECTED')) {
-                                                                console.log("starting recording");
+                                                                console_log("starting recording");
                                                                 recorderEndpoint.record();
                                                         }
                                                 });
-                                                console.log("Presenter "+sessionId+" ready.");
+                                                console_log("Presenter "+sessionId+" ready.");
                                                 presenter[sessionId].ready=1;
                                                 callback(null, sdpAnswer);
                                         });
-                                         console.log("invoking gatherCandidates");
+                                         console_log("invoking gatherCandidates");
                                         webRtcEndpoint.gatherCandidates(function(error) {
                                             if (error) {
                                                 stop(sessionId);
@@ -322,7 +326,7 @@ function startViewer(sessionId, ws, sdpOffer, presenterName, callback) {
         var presenterId = 1;
 
         if (typeof presenterName === 'undefined' || presenterName === null) {
-                console.log("setting undefined/unset presenterId to last known presenter, which is " +
+                console_log("setting undefined/unset presenterId to last known presenter, which is " +
                         lastPresenter);
                 presenterId = lastPresenter;
         }
@@ -330,7 +334,7 @@ function startViewer(sessionId, ws, sdpOffer, presenterName, callback) {
         presenterId = presenterIds[presenterName];
 
         if (typeof presenterId === 'undefined' || presenterId === null) {
-                console.log("presenter >" + presenterName+ "< not known. seting presenterId to lastPresenter, which is "+
+                console_log("presenter >" + presenterName+ "< not known. seting presenterId to lastPresenter, which is "+
                         lastPresenter);
                 presenterId = lastPresenter;
         }
@@ -338,13 +342,13 @@ function startViewer(sessionId, ws, sdpOffer, presenterName, callback) {
         if (typeof presenter[presenterId] === 'undefined' || presenter[presenterId] === null || presenter[presenterId].ready==0) {
                 stop(sessionId);
 
-                console.log("no presenter "+presenterId);
+                console_log("no presenter "+presenterId);
                 return callback(noPresenterMessage);
         }
 
         presenter[presenterId].pipeline.create('WebRtcEndpoint', function(error, webRtcEndpoint) {
                 if (error) {
-                        console.log("presenter "+presenterId+" missing. should've been there.");
+                        console_log("presenter "+presenterId+" missing. should've been there.");
                         stop(sessionId);
                         return callback(error);
                 }
@@ -355,7 +359,7 @@ function startViewer(sessionId, ws, sdpOffer, presenterName, callback) {
                 }
 
                 if (typeof presenter[presenterId] === 'undefined' || presenter[presenterId] === null) {
-                        console.log("2 no presenter "+presenterId);
+                        console_log("2 no presenter "+presenterId);
                         stop(sessionId);
                         return callback(noPresenterMessage);
                 }
@@ -370,7 +374,7 @@ function startViewer(sessionId, ws, sdpOffer, presenterName, callback) {
         webRtcEndpoint.on('OnIceCandidate', function(event) {
                 var candidate = kurento.register.complexTypes.IceCandidate(event.candidate);
                 if (ws.readyState!=1) {
-                        console.log("ws closed!\n");
+                        console_log("ws closed!\n");
                         return;
                 }
                 ws.send(JSON.stringify({
@@ -385,30 +389,30 @@ function startViewer(sessionId, ws, sdpOffer, presenterName, callback) {
                                 return callback(error);
                         }
                         if (typeof presenter[presenterId] === 'undefined' || presenter[presenterId] === null) {
-                                console.log("3 no presenter "+presenterId);
+                                console_log("3 no presenter "+presenterId);
                                 stop(sessionId);
                                 return callback(noPresenterMessage);
                         }
-                        console.log("connecting presenter "+presenterId+" with viewer "+sessionId);
+                        console_log("connecting presenter "+presenterId+" with viewer "+sessionId);
                         presenter[presenterId].webRtcEndpoint.connect(webRtcEndpoint, function(error) {
                                 if (error) {
-                                        console.log("some error connecting presenter "+presenterId+
+                                        console_log("some error connecting presenter "+presenterId+
                                                 " with viewer "+sessionId+" : "+error);
                                         stop(sessionId);
                                         return callback(error);
                                 }
                                 if (typeof presenter[presenterId] === 'undefined' || presenter[presenterId] === null) {
-                                        console.log("no presenter when connecting presenter " +
+                                        console_log("no presenter when connecting presenter " +
                                                 presenterId + " to viewer "+sessionId);
                                         stop(sessionId);
                                         return callback(noPresenterMessage);
                                 }
 
                                 callback(null, sdpAnswer);
-                        console.log("invoking gatherCandidates");
+                        console_log("invoking gatherCandidates");
                         webRtcEndpoint.gatherCandidates(function(error) {
                             if (error) {
-                                        console.log("gather candidates error");
+                                        console_log("gather candidates error");
                                     stop(sessionId);
                                     return callback(error);
                             }
@@ -453,15 +457,15 @@ function onIceCandidate(sessionId, _candidate) {
     var candidate = kurento.register.complexTypes.IceCandidate(_candidate);
 
     if (presenter[sessionId] && presenter.id === sessionId && presenter.webRtcEndpoint) {
-        console.info('Sending presenter candidate');
+        console_log('Sending presenter candidate');
         presenter[sessionId].webRtcEndpoint.addIceCandidate(candidate);
     }
     else if (viewers[sessionId] && viewers[sessionId].webRtcEndpoint) {
-        console.info('Sending viewer candidate');
+        console_log('Sending viewer candidate');
         viewers[sessionId].webRtcEndpoint.addIceCandidate(candidate);
     }
     else {
-        console.info('Queueing candidate');
+        console_log('Queueing candidate');
         if (!candidatesQueue[sessionId]) {
             candidatesQueue[sessionId] = [];
         }
