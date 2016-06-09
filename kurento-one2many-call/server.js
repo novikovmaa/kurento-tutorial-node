@@ -23,6 +23,7 @@ var ws = require('ws');
 var kurento = require('kurento-client');
 var fs    = require('fs');
 var https = require('https');
+var mkdirp = require('mkdirp');
 
 var argv = minimist(process.argv.slice(2), {
     default: {
@@ -75,6 +76,16 @@ function nextUniqueId() {
         return idCounter.toString();
 }
 
+function createFolders(sessionId, presenterName){
+	console.log("--Presenter: id= "+sessionId+ "  name="+presenterName);
+	var subId = "user_"+ presenterName.substring(presenterName.lastIndexOf(":"));
+	console.log("subID = "+subId);
+	mkdirp('/tmp/'+sessionId, function(err) { 
+
+    	// path exists unless there was an error
+
+	});		
+}
 /*
  * Management of WebSocket messages
  */
@@ -104,13 +115,15 @@ wss.on('connection', function(ws) {
         switch (message.id) {
         case 'presenter':
                         startPresenter(sessionId, ws, message.sdpOffer, message.presenterName, function(error, sdpAnswer) {
-                                if (error) {
+                                createFolders(sessionId, message.presenterName); 
+				if (error) {
                                         return ws.send(JSON.stringify({
                                                 id : 'presenterResponse',
                                                 response : 'rejected',
                                                 message : error
                                         }));
                                 }
+		
                                 ws.send(JSON.stringify({
                                         id : 'presenterResponse',
                                         response : 'accepted',
