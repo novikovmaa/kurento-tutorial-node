@@ -53,6 +53,8 @@ var lastPresenter = 1;
 var noPresenterMessage = 'No active presenter. Try again later...';
 var presenterIds = {};
 
+var webinarLastFile = {};
+
 function console_log(s) {
         console.log(new Date().toString()+" "+s);
 }
@@ -66,6 +68,8 @@ var server = https.createServer(options, app).listen(port, function() {
     console_log('Demio');
 });
 
+
+
 var wss = new ws.Server({
     server : server,
     path : '/one2many'
@@ -77,16 +81,20 @@ function nextUniqueId() {
 }
 
 function createFolders(webinarId, presenterName){
+	if (typeof webinarLastFile[webinarId]=== 'undefined' || webinarLastFile[webinarId] === null) {
+		webinarLastFile[webinarId]=0;	
+	}
 	var p = presenterName.split(":");
-	var subId = "user_"+ p[2] + "_1";
+	var subId = "user_"+ p[2] + "_" + webinarLastFile[webinarId].toString();
 	if (p[1] === "screenshare") {
-		subId="screen_1";
+		subId="screen_"+webinarLastFile[webinarId].toString();;
 	}
 	mkdirp('/tmp/'+webinarId, function(err) { 
 		console.log("Error creating pathname "+err);
 	});		
 	var path = '/tmp/' + webinarId + '/' + subId + '.webm';
 	console_log("pathname: "+path);
+	webinarLastFile[webinarId]++;
 	return path;
 }
 /*
