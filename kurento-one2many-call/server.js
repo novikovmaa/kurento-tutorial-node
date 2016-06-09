@@ -76,15 +76,18 @@ function nextUniqueId() {
         return idCounter.toString();
 }
 
-function createFolders(sessionId, presenterName){
-	console.log("--Presenter: id= "+sessionId+ "  name="+presenterName);
-	var subId = "user_"+ presenterName.substring(presenterName.lastIndexOf(":"));
-	console.log("subID = "+subId);
-	mkdirp('/tmp/'+sessionId, function(err) { 
-
-    	// path exists unless there was an error
-
+function createFolders(webinarId, presenterName){
+	var p = presenterName.split(":");
+	var subId = "user_"+ p[2] + "_1";
+	if (p[1] === "screenshare") {
+		subId="screen_1";
+	}
+	mkdirp('/tmp/'+webinarId, function(err) { 
+		console.log("Error creating pathname "+err);
 	});		
+	var path = '/tmp/' + webinarId + '/' + subId + '.webm';
+	console_log("pathname: "+path);
+	return path;
 }
 /*
  * Management of WebSocket messages
@@ -114,8 +117,7 @@ wss.on('connection', function(ws) {
 
         switch (message.id) {
         case 'presenter':
-                        startPresenter(sessionId, ws, message.sdpOffer, message.presenterName, function(error, sdpAnswer) {
-                                createFolders(sessionId, message.presenterName); 
+                        startPresenter(sessionId, ws, message.sdpOffer, message.webinarId, message.presenterName, function(error, sdpAnswer) {
 				if (error) {
                                         return ws.send(JSON.stringify({
                                                 id : 'presenterResponse',
@@ -195,7 +197,7 @@ function getKurentoClient(callback) {
 }
 
 // fixed
-function startPresenter(sessionId, ws, sdpOffer, presenterName, callback) {
+function startPresenter(sessionId, ws, sdpOffer, webinarId, presenterName, callback) {
         clearCandidatesQueue(sessionId);
 
         if (typeof presenter[sessionId] !== 'undefined' && presenter[sessionId] !== null) {
@@ -240,10 +242,10 @@ function startPresenter(sessionId, ws, sdpOffer, presenterName, callback) {
                         }
 
                         presenter[sessionId].pipeline = pipeline;
-                        console_log("created a media pipline and assigned it to presenter "+sessionId);
-
+                        console_log("created a media pipeline and assigned it to presenter "+sessionId);
+                        var pathname = createFolders(webinarId, presenterName);
                         recordParams = {
-                                uri : "file:///tmp/demio_rec_"+sessionId+"_"+Math.floor(Math.random()*1000000000)+".webm" //The media server user must have wirte permissions for creating this file
+                                uri : "file://"+pathname
                         };
                         pipeline.create('RecorderEndpoint', recordParams, function(error, recorderEndpoint) {
                                 if (error) {
