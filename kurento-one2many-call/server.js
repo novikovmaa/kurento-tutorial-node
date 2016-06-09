@@ -25,6 +25,22 @@ var fs    = require('fs');
 var https = require('https');
 var mkdirp = require('mkdirp');
 
+mongodb = require("mongodb");
+
+var mongo_dsn = 'mongodb://demio:Kdy4Ga41H3kje2lPpVrk2GkLW0Foqe7D@104.236.49.21:27017/recordings';
+
+MongoClient = mongodb.MongoClient;
+// userId of webinar HOST by webinarId
+var webinarOwners = {};
+// new Date() taken when HOST first connected, by webinarId
+var webinarStartTimes = {};
+// webinarId by presenterId
+var webinarsIdByPresenterId = {};
+// webinar recordingId by webinarId
+var webinarRecordingIds = {};
+
+var db;
+
 var argv = minimist(process.argv.slice(2), {
     default: {
         as_uri: 'https://localhost:8443/',
@@ -100,32 +116,52 @@ function createFolders(webinarId, presenterName){
 /*
  * Management of WebSocket messages
  */
-wss.on('connection', function(ws) {
 
-        var sessionId = nextUniqueId();
-        console_log('Connection received with sessionId ' + sessionId);
+function writeDocument(collection, data) {
+	var col = db.collection(collection);
+	col.insert(data, {w: 1}, function (err, records) {
+		if (err) {
+			console_log("mongo error: "+err);
+			process.exit(-1);
+		} else {
+			console_log("mongo insert ok, records: "+records);
+		}
+	});
+}
 
-    ws.on('error', function(error) {
-        console_log('Connection ' + sessionId + ' error');
-        stop(sessionId);
-    });
+MongoClient.connect(mongo_dsn, function (err, d) {
+    if (err) {
+	console.log("error connecting to mongo "+err);
+	return;
+    }
+    db = d;
+    wss.on('connection', function(ws) {
 
-    ws.on('close', function() {
-        console_log('Connection ' + sessionId + ' closed');
-        stop(sessionId);
-    });
+	    var sessionId = nextUniqueId();
+	    console_log('Connection received with sessionId ' + sessionId);
 
-    ws.on('message', function(_message) {
-        var message = JSON.parse(_message);
-        if (message.id !== 'onIceCandidate') {
-               console_log('Connection ' + sessionId + ' received message ', message);
-        } else {
-                console_log('TL;DR: onIceCandidate');
-        }
+	    ws.on('error', function(error) {
+	        console_log('Connection ' + sessionId + ' error');
+        	stop(sessionId);
+	    });
 
-        switch (message.id) {
-        case 'presenter':
-                        startPresenter(sessionId, ws, message.sdpOffer, message.webinarId, message.presenterName, function(error, sdpAnswer) {
+	    ws.on('close', function() {
+        	console_log('Connection ' + sessionId + ' closed');
+	        stop(sessionId);
+	    });
+
+	    ws.on('message', function(_message) {
+        	var message = JSON.parse(_message);
+	        if (message.id !== 'onIceCandidate') {
+        	       console_log('Connection ' + sessionId + ' received message ', message);
+	        } else {
+        	        console_log('TL;DR: onIceCandidate');
+	        }
+
+	        switch (message.id) {
+        	case 'presenter':
+                        startPresenter(sessionId, ws, message.sdpOffer, message.webinarId, message.recordingId,
+				message.presenterName, function(error, sdpAnswer) {
 				if (error) {
                                         return ws.send(JSON.stringify({
                                                 id : 'presenterResponse',
@@ -143,7 +179,7 @@ wss.on('connection', function(ws) {
                         });
                         break;
 
-        case 'viewer':
+	        case 'viewer':
                         // message has to contain presenterId
                         console_log("start viewer, presenterName: >"+message.presenterName+"<, sessionId"+sessionId);
                         startViewer(sessionId, ws, message.sdpOffer, message.presenterName, function(error, sdpAnswer) {
@@ -163,21 +199,22 @@ wss.on('connection', function(ws) {
                         });
                         break;
 
-        case 'stop':
-            stop(sessionId);
-            break;
+        	case 'stop':
+	            stop(sessionId);
+        	    break;
 
-        case 'onIceCandidate':
-            onIceCandidate(sessionId, message.candidate);
-            break;
+	        case 'onIceCandidate':
+        	    onIceCandidate(sessionId, message.candidate);
+	            break;
 
-        default:
-            ws.send(JSON.stringify({
-                id : 'error',
-                message : 'Invalid message ' + message
-            }));
-            break;
-        }
+        	default:
+	            ws.send(JSON.stringify({
+        	        id : 'error',
+                	message : 'Invalid message ' + message
+	            }));
+        	    break;
+	        }
+	    });
     });
 });
 
@@ -205,7 +242,7 @@ function getKurentoClient(callback) {
 }
 
 // fixed
-function startPresenter(sessionId, ws, sdpOffer, webinarId, presenterName, callback) {
+function startPresenter(sessionId, ws, sdpOffer, webinarId, recordingId, presenterName, callback) {
         clearCandidatesQueue(sessionId);
 
         if (typeof presenter[sessionId] !== 'undefined' && presenter[sessionId] !== null) {
@@ -218,14 +255,39 @@ function startPresenter(sessionId, ws, sdpOffer, webinarId, presenterName, callb
         console_log("presenterName for presenter "+sessionId+" is >"+presenterName+"<");
         console_log("last presenter is now "+lastPresenter);
 
+	if (typeof webinarOwners[webinarId] === 'undefined' || webinarOwners[webinarId] === null ) {
+		console_log("=========================================== New Webinar ==========================================");
+		webinarOwners[webinarId] = presenterName.split(":")[2];
+		webinarIdByPresenterId[sessionId]=webinarId;
+		webinarStartTimes[webinarId] = new Date();
+		webinarRecordingIds[webinarId] = recordingId;
+		writeDocument("events", {
+			'eventType': 'startRecording',
+			'recordingId': recordingId,
+			'webinarId': webinarId,
+			'time': new Date(),
+			'userId': webinarOwners[webinarId],
+			'version': '1.1',
+			'startTime': new Date()
+		});
+	}
+
         presenter[sessionId] = {
                 id : sessionId,
                 pipeline : null,
                 webRtcEndpoint : null,
                 recorderEndpoint : null,
+		webinarId : webinarId,
+		recordingId : recordingId,
                 ready : 0
         }
-        console_log("assigned presented "+sessionId+" with value "+presenter[sessionId].id);
+
+        var type = 'changeVideo';
+        if (presenter[sessionId].file.indexOf("screen")>-1) {
+                 type = 'changeScreen';
+        }
+
+        console_log("assigned presenter "+sessionId+" with value "+presenter[sessionId].id);
         getKurentoClient(function(error, kurentoClient) {
                 if (error) {
                         stop(sessionId);
@@ -252,6 +314,18 @@ function startPresenter(sessionId, ws, sdpOffer, webinarId, presenterName, callb
                         presenter[sessionId].pipeline = pipeline;
                         console_log("created a media pipeline and assigned it to presenter "+sessionId);
                         var pathname = createFolders(webinarId, presenterName);
+			presenter[sessionId].path = pathname;
+			presenter[sessionId].file = pathname.substring(pathname.lastIndexOf("/")+1);
+		        writeDocument("events", {
+		              'eventType': type,
+		              'recordingId': presenter[sessionId].recordingId,
+		              'webinarId': presenter[sessionId].webinarId,
+		              'time': new Date(),
+		              'value': true,
+		              'fileName': presenter[sessionId].file,
+		              'userId': webinarOwners[webinarId]
+		        });
+
                         recordParams = {
                                 uri : "file://"+pathname
                         };
@@ -452,6 +526,46 @@ function clearCandidatesQueue(sessionId) {
 // fixed
 function stop(sessionId) {
         if (typeof presenter[sessionId] !== 'undefined' && presenter[sessionId] !== null && presenter[sessionId].id == sessionId) {
+		var type = 'changeVideo';
+		if (presenter[sessionId].file.indexOf("screen")>-1) {
+			type = 'changeScreen';
+		}
+                writeDocument("events", {
+                      'eventType': type,
+                      'recordingId': presenter[sessionId].recordingId,
+                      'webinarId': presenter[sessionId].webinarId,
+                      'time': new Date(),
+		      'value': false,
+		      'fileName': presenter[sessionId].file, 
+                      'userId': webinarOwners[presenter[sessionId].webinarId]
+                });
+
+		if (webinarIdByPresenterId[sessionId]!==undefined && webinarIdByPresenterId[sessionId]!=null) {
+			// webinar HOST disconnected
+	                writeDocument("events", {
+        	                'eventType': 'stopRecording',
+                	        'recordingId': presenter[sessionId].recordingId,
+                        	'webinarId': presenter[sessionId].webinarId,
+	                        'time': new Date(),
+        	                'userId': webinarOwners[webinarId],
+                	        'version': '1.1',
+                        	'stopTime': new Date()
+	                });
+                        writeDocument("recordings", {
+                                'eventType': 'stopRecording',
+                                'recordingId': presenter[sessionId].recordingId,
+                                'webinarId': presenter[sessionId].webinarId,
+                                'time': new Date(),
+				'startTime': startTimes[presenter[sessionId].webinarId],
+                                'userId': webinarOwners[presenter[sessionId].webinarId],
+                                'version': '1.1',
+				'status': 'notConverted',
+                                'creationTime': startTimes[presenter[sessionId].webinarId],
+				'stopTime': new Date()
+                        });
+
+
+		}
 		// invalidate presenter so no one could connect to it
 		presenter[sessionId].ready = 0;
                 for (var i in viewers) {
