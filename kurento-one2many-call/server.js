@@ -35,7 +35,7 @@ var webinarOwners = {};
 // new Date() taken when HOST first connected, by webinarId
 var webinarStartTimes = {};
 // webinarId by presenterId
-var webinarsIdByPresenterId = {};
+var webinarIdByPresenterId = {};
 // webinar recordingId by webinarId
 var webinarRecordingIds = {};
 
@@ -106,7 +106,9 @@ function createFolders(webinarId, presenterName){
 		subId="screen_"+webinarLastFile[webinarId].toString();;
 	}
 	mkdirp('/tmp/'+webinarId, function(err) { 
-		console.log("Error creating pathname "+err);
+		if (err) {
+			console.log("Error creating pathname "+err);
+		}
 	});		
 	var path = '/tmp/' + webinarId + '/' + subId + '.webm';
 	console_log("pathname: "+path);
@@ -282,11 +284,6 @@ function startPresenter(sessionId, ws, sdpOffer, webinarId, recordingId, present
                 ready : 0
         }
 
-        var type = 'changeVideo';
-        if (presenter[sessionId].file.indexOf("screen")>-1) {
-                 type = 'changeScreen';
-        }
-
         console_log("assigned presenter "+sessionId+" with value "+presenter[sessionId].id);
         getKurentoClient(function(error, kurentoClient) {
                 if (error) {
@@ -316,6 +313,10 @@ function startPresenter(sessionId, ws, sdpOffer, webinarId, recordingId, present
                         var pathname = createFolders(webinarId, presenterName);
 			presenter[sessionId].path = pathname;
 			presenter[sessionId].file = pathname.substring(pathname.lastIndexOf("/")+1);
+        		var type = 'changeVideo';
+		        if (presenter[sessionId].file.indexOf("screen")>-1) {
+		                 type = 'changeScreen';
+		        }
 		        writeDocument("events", {
 		              'eventType': type,
 		              'recordingId': presenter[sessionId].recordingId,
@@ -552,16 +553,18 @@ function stop(sessionId) {
                         	'stopTime': new Date()
 	                });
                         writeDocument("recordings", {
-                                'eventType': 'stopRecording',
                                 'recordingId': presenter[sessionId].recordingId,
                                 'webinarId': presenter[sessionId].webinarId,
                                 'time': new Date(),
 				'startTime': startTimes[presenter[sessionId].webinarId],
                                 'userId': webinarOwners[presenter[sessionId].webinarId],
-                                'version': '1.1',
 				'status': 'notConverted',
                                 'creationTime': startTimes[presenter[sessionId].webinarId],
-				'stopTime': new Date()
+				'stopTime': new Date(),
+				'serverAlias': 'StagingA',
+				'userEmail': '',
+				'webinarTitle': '',
+				'duration': new Date()-startTimes[presenter[sessionId].webinarId]
                         });
 
 
