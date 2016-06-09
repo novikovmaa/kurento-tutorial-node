@@ -450,9 +450,11 @@ function stop(sessionId) {
                         var viewer = viewers[i];
                         // this viewer is a viewer of this presenter
                         if (viewer != null && viewer.ws && viewer.presenterId == sessionId) {
-                                viewer.ws.send(JSON.stringify({
-                                        id : 'stopCommunication'
-                                }));
+				if (ws.readyState==1) {
+					viewer.ws.send(JSON.stringify({
+                                        	id : 'stopCommunication'
+                                	}));
+				}
                                 viewers[i] = null;
                         }
                 }
