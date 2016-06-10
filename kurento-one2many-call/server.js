@@ -27,7 +27,8 @@ var mkdirp = require('mkdirp');
 
 mongodb = require("mongodb");
 
-var mongo_dsn = 'mongodb://demio:Kdy4Ga41H3kje2lPpVrk2GkLW0Foqe7D@104.236.49.21:27017/recordings';
+var mongo_dsn = '__mongo_dsn__';
+//mongodb://demio:Kdy4Ga41H3kje2lPpVrk2GkLW0Foqe7D@104.236.49.21:27017/recordings';
 
 MongoClient = mongodb.MongoClient;
 // userId of webinar HOST by webinarId
