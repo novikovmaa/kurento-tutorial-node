@@ -27,7 +27,7 @@ var mkdirp = require('mkdirp');
 
 mongodb = require("mongodb");
 
-var mongo_dsn = '__mongo_dsn__';
+var mongo_dsn = 'mongodb://demio:Kdy4Ga41H3kje2lPpVrk2GkLW0Foqe7D@104.236.49.21:27017/recordings';
 //mongodb://demio:Kdy4Ga41H3kje2lPpVrk2GkLW0Foqe7D@104.236.49.21:27017/recordings';
 
 MongoClient = mongodb.MongoClient;
@@ -127,7 +127,7 @@ function writeDocument(collection, data) {
 			console_log("mongo error: "+err);
 			process.exit(-1);
 		} else {
-			console_log("mongo insert ok, records: "+records);
+			console_log("wrote to collection "+collection+" data: "+JSON.stringify(data));
 		}
 	});
 }
@@ -549,7 +549,7 @@ function stop(sessionId) {
                 	        'recordingId': presenter[sessionId].recordingId,
                         	'webinarId': presenter[sessionId].webinarId,
 	                        'time': new Date(),
-        	                'userId': webinarOwners[webinarId],
+        	                'userId': webinarOwners[presenter[sessionId].webinarId],
                 	        'version': '1.1',
                         	'stopTime': new Date()
 	                });
@@ -557,15 +557,15 @@ function stop(sessionId) {
                                 'recordingId': presenter[sessionId].recordingId,
                                 'webinarId': presenter[sessionId].webinarId,
                                 'time': new Date(),
-				'startTime': startTimes[presenter[sessionId].webinarId],
+				'startTime': webinarStartTimes[presenter[sessionId].webinarId],
                                 'userId': webinarOwners[presenter[sessionId].webinarId],
 				'status': 'notConverted',
-                                'creationTime': startTimes[presenter[sessionId].webinarId],
+                                'creationTime': webinarStartTimes[presenter[sessionId].webinarId],
 				'stopTime': new Date(),
-				'serverAlias': 'StagingA',
+				'serverAlias': '__server_alias__',
 				'userEmail': '',
 				'webinarTitle': '',
-				'duration': new Date()-startTimes[presenter[sessionId].webinarId]
+				'duration': new Date()-webinarStartTimes[presenter[sessionId].webinarId]
                         });
 
 
