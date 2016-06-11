@@ -27,8 +27,8 @@ var mkdirp = require('mkdirp');
 
 mongodb = require("mongodb");
 
-var mongo_dsn = 'mongodb://demio:Kdy4Ga41H3kje2lPpVrk2GkLW0Foqe7D@104.236.49.21:27017/recordings';
-//mongodb://demio:Kdy4Ga41H3kje2lPpVrk2GkLW0Foqe7D@104.236.49.21:27017/recordings';
+var config = require("./config.js");
+
 
 MongoClient = mongodb.MongoClient;
 // userId of webinar HOST by webinarId
@@ -106,12 +106,12 @@ function createFolders(webinarId, presenterName){
 	if (p[1] === "screenshare") {
 		subId="screen_"+webinarLastFile[webinarId].toString();;
 	}
-	mkdirp('/tmp/'+webinarId, function(err) { 
+	mkdirp('/tmp/'+webinarId+'/rec', function(err) { 
 		if (err) {
 			console.log("Error creating pathname "+err);
 		}
 	});		
-	var path = '/tmp/' + webinarId + '/' + subId + '.webm';
+	var path = '/tmp/' + webinarId + '/rec/' + subId + '.webm';
 	console_log("pathname: "+path);
 	webinarLastFile[webinarId]++;
 	return path;
@@ -132,7 +132,7 @@ function writeDocument(collection, data) {
 	});
 }
 
-MongoClient.connect(mongo_dsn, function (err, d) {
+MongoClient.connect(config.mongo_dsn, function (err, d) {
     if (err) {
 	console.log("error connecting to mongo "+err);
 	return;
@@ -163,7 +163,7 @@ MongoClient.connect(mongo_dsn, function (err, d) {
 
 	        switch (message.id) {
         	case 'presenter':
-                        startPresenter(sessionId, ws, message.sdpOffer, message.webinarId, message.recordingId,
+                        startPresenter(sessionId, ws, message.sdpOffer, message.webinarId, 'rec',
 				message.presenterName, function(error, sdpAnswer) {
 				if (error) {
                                         return ws.send(JSON.stringify({
@@ -562,7 +562,7 @@ function stop(sessionId) {
 				'status': 'notConverted',
                                 'creationTime': webinarStartTimes[presenter[sessionId].webinarId],
 				'stopTime': new Date(),
-				'serverAlias': '__server_alias__',
+				'serverAlias': config.server_alias,
 				'userEmail': '',
 				'webinarTitle': '',
 				'duration': new Date()-webinarStartTimes[presenter[sessionId].webinarId]
