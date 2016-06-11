@@ -27,7 +27,7 @@ var mkdirp = require('mkdirp');
 
 mongodb = require("mongodb");
 
-var config = require("./config.js");
+var config = require("./config.json");
 
 
 MongoClient = mongodb.MongoClient;
@@ -268,7 +268,7 @@ function startPresenter(sessionId, ws, sdpOffer, webinarId, recordingId, present
 			'eventType': 'startRecording',
 			'recordingId': recordingId,
 			'webinarId': webinarId,
-			'time': new Date(),
+			'time': 0,
 			'userId': webinarOwners[webinarId],
 			'version': '1.1',
 			'startTime': new Date()
@@ -322,7 +322,7 @@ function startPresenter(sessionId, ws, sdpOffer, webinarId, recordingId, present
 		              'eventType': type,
 		              'recordingId': presenter[sessionId].recordingId,
 		              'webinarId': presenter[sessionId].webinarId,
-		              'time': new Date(),
+		              'time': new Date()-webinarStartTimes[presenter[sessionId].webinarId],
 		              'value': true,
 		              'fileName': presenter[sessionId].file,
 		              'userId': webinarOwners[webinarId]
@@ -536,7 +536,7 @@ function stop(sessionId) {
                       'eventType': type,
                       'recordingId': presenter[sessionId].recordingId,
                       'webinarId': presenter[sessionId].webinarId,
-                      'time': new Date(),
+                      'time': new Date()-webinarStartTimes[presenter[sessionId].webinarId],
 		      'value': false,
 		      'fileName': presenter[sessionId].file, 
                       'userId': webinarOwners[presenter[sessionId].webinarId]
@@ -548,7 +548,7 @@ function stop(sessionId) {
         	                'eventType': 'stopRecording',
                 	        'recordingId': presenter[sessionId].recordingId,
                         	'webinarId': presenter[sessionId].webinarId,
-	                        'time': new Date(),
+	                        'time': new Date()-webinarStartTimes[presenter[sessionId].webinarId],
         	                'userId': webinarOwners[presenter[sessionId].webinarId],
                 	        'version': '1.1',
                         	'stopTime': new Date()
